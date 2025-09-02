@@ -1,6 +1,6 @@
 import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 import { dereference } from '@apidevtools/json-schema-ref-parser'
-import { ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
+import { ApiConfig, ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
 
 export type AdaptedOperationMethods<OperationMethods> = {
     [K in keyof OperationMethods]: OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
@@ -99,9 +99,10 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
 
 export const createTypedApi = async <OperationMethods, PathsDictionary>(
     pathToSpec: string,
-    apiInstance: ReturnType<typeof createApi>,
+    config: ApiConfig,
 ) => {
     const spec = await loadSpec(pathToSpec)
+    const apiInstance = createApi(config)
     return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(
         spec as OpenAPISpec,
         apiInstance,
