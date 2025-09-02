@@ -1,0 +1,109 @@
+import type { AxiosRequestConfig, AxiosResponse } from 'axios'
+import { dereference } from '@apidevtools/json-schema-ref-parser'
+import { ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
+
+export type AdaptedOperationMethods<OperationMethods> = {
+    [K in keyof OperationMethods]: OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
+        ? (...args: A) => Promise<ApiResponse<R>>
+        : OperationMethods[K]
+}
+
+interface OpenAPIOperation {
+    operationId?: string
+}
+
+type OpenAPIPathItem = {
+    [method in Methods]?: OpenAPIOperation
+}
+
+interface OpenAPISpec {
+    paths: Record<string, OpenAPIPathItem>
+}
+
+export interface SplitParamsResult {
+    url: string
+    pathParams: Record<string, any>
+    queryParams: Record<string, any>
+}
+
+const loadSpec = async (path: string) => {
+    const raw = await import(path)
+    const { Validator } = await import('@seriousme/openapi-schema-validator')
+
+    const validator = new Validator()
+    const result = await validator.validate(raw)
+    if (!result.valid) {
+        throw new Error(`OpenAPI validation errors: ${JSON.stringify(result.errors, null, 2)}`)
+    }
+
+    return await dereference(raw)
+}
+
+/**
+ * Splits a flat parameters object into path parameters and query parameters.
+ * Replaces placeholders in the URL with the values from `parameters`.
+ */
+export const splitParams = (urlTemplate: string, parameters: Record<string, any>): SplitParamsResult => {
+    let url = urlTemplate
+    const pathParams: Record<string, any> = {}
+
+    url.replace(/\{([^}]+)\}/g, (_, key) => {
+        if (key in parameters) {
+            pathParams[key] = parameters[key]
+            url = url.replace(`{${key}}`, encodeURIComponent(String(parameters[key])))
+        } else {
+            throw new Error(`Missing path parameter: ${key}`)
+        }
+        return ''
+    })
+
+    const queryParams: Record<string, any> = { ...parameters }
+    Object.keys(pathParams).forEach((k) => delete queryParams[k])
+
+    return { url, pathParams, queryParams }
+}
+
+const createMethod =
+    (path: string, method: string, api: ApiInstance) =>
+    async (parameters: any = {}, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<any>> => {
+        const { queryParams, url } = splitParams(path, parameters)
+        const axiosConfig: AxiosRequestConfig = {
+            method,
+            url,
+            params: queryParams,
+            data,
+            ...config,
+        }
+
+        return api.request(axiosConfig)
+    }
+
+export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
+    spec: OpenAPISpec,
+    api: ApiInstance,
+): OperationMethods & { paths: PathsDictionary } => {
+    const methods: Record<string, Function> = {}
+    const paths: Record<string, Record<string, Function>> = {}
+
+    for (const [path, methodsObj] of Object.entries(spec.paths)) {
+        paths[path] = {}
+        for (const [method, operation] of Object.entries(methodsObj)) {
+            const fn = createMethod(path, method, api)
+            if (operation.operationId) methods[operation.operationId] = fn
+            paths[path][method] = fn
+        }
+    }
+
+    return { ...methods, paths } as unknown as OperationMethods & { paths: PathsDictionary }
+}
+
+export const createTypedApi = async <OperationMethods, PathsDictionary>(
+    pathToSpec: string,
+    apiInstance: ReturnType<typeof createApi>,
+) => {
+    const spec = await loadSpec(pathToSpec)
+    return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(
+        spec as OpenAPISpec,
+        apiInstance,
+    )
+}
