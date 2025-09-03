@@ -1,5 +1,13 @@
+import * as openapi from '../src/openapi'
 import { AxiosRequestConfig, AxiosResponse } from 'axios'
-import { buildClientFromSpec, ApiInstance, AdaptedOperationMethods, splitParams } from '../src'
+import {
+    buildClientFromSpec,
+    ApiInstance,
+    AdaptedOperationMethods,
+    splitParams,
+    createTypedApi,
+    OpenAPISpec,
+} from '../src'
 
 type RawAxiosResponse<Response> = Promise<AxiosResponse<Response>>
 
@@ -34,13 +42,13 @@ const api = {
 
 interface OperationMethods {
     'getUser'(
-        parameters: { id: number, expand?: string },
+        parameters: { id: number; expand?: string },
         data?: any,
         config?: AxiosRequestConfig,
     ): RawAxiosResponse<{ id: number; name: string }>
 
     'createUser'(
-        parameters: { id: number},
+        parameters: { id: number },
         data?: { name: string },
         config?: AxiosRequestConfig,
     ): RawAxiosResponse<{ id: number; name: string }>
@@ -49,7 +57,7 @@ interface OperationMethods {
 interface PathsDictionary {
     '/user/{id}': {
         get(
-            parameters: { id: number, expand?: string },
+            parameters: { id: number; expand?: string },
             data?: any,
             config?: AxiosRequestConfig,
         ): RawAxiosResponse<{ id: number; name: string }>
@@ -115,9 +123,7 @@ describe('splitParams', () => {
     })
 
     it('should throw if a path parameter is missing', () => {
-        expect(() =>
-            splitParams('/user/{id}/items/{itemId}', { id: 1 })
-        ).toThrowError('Missing path parameter: itemId')
+        expect(() => splitParams('/user/{id}/items/{itemId}', { id: 1 })).toThrow('Missing path parameter: itemId')
     })
 
     it('should handle URLs with no placeholders', () => {
@@ -130,5 +136,28 @@ describe('splitParams', () => {
     it('should encode path parameters', () => {
         const { url } = splitParams('/search/{term}', { term: 'hello world' })
         expect(url).toBe('/search/hello%20world')
+    })
+})
+
+describe('createTypedApi', () => {
+    it('should be sync method overload when providing spec as object', () => {
+        const spy = jest.spyOn(openapi, 'loadSpec').mockResolvedValue({ paths: {} } as any)
+        const api = createTypedApi<OperationMethods, PathsDictionary>(spec as OpenAPISpec, {
+            url: '',
+            headers: {},
+            timeout: 1000,
+        })
+        expect(spy).not.toHaveBeenCalled()
+        expect(api.createUser).toBeDefined()
+    })
+    it('should be async sync method overload when providing spec as string', () => {
+        const spy = jest.spyOn(openapi, 'loadSpec').mockResolvedValue({ paths: {} } as any)
+        const api = createTypedApi<OperationMethods, PathsDictionary>('path', {
+            url: '',
+            headers: {},
+            timeout: 1000,
+        })
+        expect(spy).toHaveBeenCalled()
+        expect((api as any).createUser).not.toBeDefined()
     })
 })

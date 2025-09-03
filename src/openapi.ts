@@ -16,7 +16,7 @@ type OpenAPIPathItem = {
     [method in Methods]?: OpenAPIOperation
 }
 
-interface OpenAPISpec {
+export interface OpenAPISpec {
     paths: Record<string, OpenAPIPathItem>
 }
 
@@ -26,7 +26,7 @@ export interface SplitParamsResult {
     queryParams: Record<string, any>
 }
 
-const loadSpec = async (path: string) => {
+export const loadSpec = async (path: string): Promise<OpenAPISpec> => {
     const raw = await import(path)
     const { Validator } = await import('@seriousme/openapi-schema-validator')
 
@@ -81,7 +81,7 @@ const createMethod =
 export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
     spec: OpenAPISpec,
     api: ApiInstance,
-): OperationMethods & { paths: PathsDictionary } => {
+): ApiInstance & OperationMethods & { paths: PathsDictionary } => {
     const methods: Record<string, Function> = {}
     const paths: Record<string, Record<string, Function>> = {}
 
@@ -93,18 +93,28 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
             paths[path][method] = fn
         }
     }
+    Object.assign(api, methods, { paths })
 
-    return { ...methods, paths } as unknown as OperationMethods & { paths: PathsDictionary }
+    return api as OperationMethods & { paths: PathsDictionary } & ApiInstance
 }
 
-export const createTypedApi = async <OperationMethods, PathsDictionary>(
-    pathToSpec: string,
+export function createTypedApi<OperationMethods, PathsDictionary>(
+    specOrPath: string,
     config: ApiConfig,
-) => {
-    const spec = await loadSpec(pathToSpec)
-    const apiInstance = createApi(config)
-    return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(
-        spec as OpenAPISpec,
-        apiInstance,
-    )
+): Promise<AdaptedOperationMethods<OperationMethods> & { paths: PathsDictionary } & ApiInstance>
+export function createTypedApi<OperationMethods, PathsDictionary>(
+    specOrPath: OpenAPISpec,
+    config: ApiConfig,
+): AdaptedOperationMethods<OperationMethods> & { paths: PathsDictionary } & ApiInstance
+export function createTypedApi<OperationMethods, PathsDictionary>(specOrPath: string | OpenAPISpec, config: ApiConfig) {
+    if (typeof specOrPath === 'string') {
+        return (async () => {
+            const spec = await loadSpec(specOrPath)
+            const apiInstance = createApi(config)
+            return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(spec, apiInstance)
+        })()
+    } else {
+        const apiInstance = createApi(config)
+        return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(specOrPath, apiInstance)
+    }
 }
