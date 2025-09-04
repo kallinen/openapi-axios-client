@@ -150,6 +150,7 @@ describe('createTypedApi', () => {
         expect(spy).not.toHaveBeenCalled()
         expect(api.createUser).toBeDefined()
     })
+
     it('should be async sync method overload when providing spec as string', () => {
         const spy = jest.spyOn(openapi, 'loadSpec').mockResolvedValue({ paths: {} } as any)
         const api = createTypedApi<OperationMethods, PathsDictionary>('path', {
@@ -161,3 +162,4 @@ describe('createTypedApi', () => {
         expect((api as any).createUser).not.toBeDefined()
     })
 })
+

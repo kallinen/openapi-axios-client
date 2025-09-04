@@ -3,8 +3,11 @@ import { dereference } from '@apidevtools/json-schema-ref-parser'
 import { ApiConfig, ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
 
 export type AdaptedOperationMethods<OperationMethods> = {
-    [K in keyof OperationMethods]: OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
-        ? (...args: A) => Promise<ApiResponse<R>>
+    [K in keyof OperationMethods]:
+        OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
+            ? (...args: A) => Promise<ApiResponse<R>>
+        : OperationMethods[K] extends (...args: infer A) => Promise<infer R>
+            ? (...args: A) => Promise<ApiResponse<R>>
         : OperationMethods[K]
 }
 
