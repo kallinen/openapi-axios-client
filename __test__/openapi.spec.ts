@@ -147,6 +147,37 @@ describe('splitParams', () => {
         const { url } = splitParams('/fetch/{id}', 2)
         expect(url).toBe('/fetch/2')
     })
+
+    it('should throw if multiple path params exist but only a single primitive is passed', () => {
+        expect(() => splitParams('/user/{id}/items/{itemId}', 123)).toThrow('Missing path parameter: id')
+    })
+
+    it('should ignore extra parameters not in path or query', () => {
+        const { url, pathParams, queryParams } = splitParams('/user/{id}', {
+            id: 5,
+            foo: 'bar',
+        })
+        expect(url).toBe('/user/5')
+        expect(pathParams).toEqual({ id: 5 })
+        expect(queryParams).toEqual({ foo: 'bar' })
+    })
+
+    it('should handle empty parameters object with no path placeholders', () => {
+        const { url, pathParams, queryParams } = splitParams('/status', {})
+        expect(url).toBe('/status')
+        expect(pathParams).toEqual({})
+        expect(queryParams).toEqual({})
+    })
+
+    it('should throw if primitive passed but URL has no placeholders', () => {
+        expect(() => splitParams('/static', 'oops')).toThrow('Primitives are only supported as path params')
+    })
+
+    it('should support numeric string substitution', () => {
+        const { url, pathParams } = splitParams('/order/{orderId}', { orderId: '42' })
+        expect(url).toBe('/order/42')
+        expect(pathParams).toEqual({ orderId: '42' })
+    })
 })
 
 describe('createTypedApi', () => {

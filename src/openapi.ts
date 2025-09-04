@@ -53,12 +53,16 @@ export const splitParams = (
     const pathParams: Record<string, any> = {}
 
     const isSingleParam = typeof parameters === 'string' || typeof parameters === 'number'
-    const paramKeys = urlTemplate.match(/\{([^}]+)\}/g)?.map(key => key.slice(1, -1)) || []
-    const paramsObj: Record<string, any> = isSingleParam
-        ? paramKeys.length > 0
-            ? { [paramKeys[0]!]: parameters }
+    const paramKeys = urlTemplate.match(/\{([^}]+)\}/g)?.map((key) => key.slice(1, -1)) || []
+    if (isSingleParam && !paramKeys.length) {
+        throw new Error('Primitives are only supported as path params')
+    }
+    const paramsObj: Record<string, any> =
+        isSingleParam && paramKeys.length === 1
+            ? { [paramKeys[0]]: parameters }
+            : typeof parameters === 'object'
+            ? parameters
             : {}
-        : parameters
 
     url.replace(/\{([^}]+)\}/g, (_, key) => {
         if (key in paramsObj) {
