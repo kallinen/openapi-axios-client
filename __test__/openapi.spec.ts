@@ -137,6 +137,16 @@ describe('splitParams', () => {
         const { url } = splitParams('/search/{term}', { term: 'hello world' })
         expect(url).toBe('/search/hello%20world')
     })
+
+    it('should work with single string param', () => {
+        const { url } = splitParams('/search/{term}', 'hello world')
+        expect(url).toBe('/search/hello%20world')
+    })
+
+    it('should work with single integer param', () => {
+        const { url } = splitParams('/fetch/{id}', 2)
+        expect(url).toBe('/fetch/2')
+    })
 })
 
 describe('createTypedApi', () => {
@@ -162,4 +172,3 @@ describe('createTypedApi', () => {
         expect((api as any).createUser).not.toBeDefined()
     })
 })
-

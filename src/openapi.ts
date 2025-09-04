@@ -3,11 +3,10 @@ import { dereference } from '@apidevtools/json-schema-ref-parser'
 import { ApiConfig, ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
 
 export type AdaptedOperationMethods<OperationMethods> = {
-    [K in keyof OperationMethods]:
-        OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
-            ? (...args: A) => Promise<ApiResponse<R>>
+    [K in keyof OperationMethods]: OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
+        ? (...args: A) => Promise<ApiResponse<R>>
         : OperationMethods[K] extends (...args: infer A) => Promise<infer R>
-            ? (...args: A) => Promise<ApiResponse<R>>
+        ? (...args: A) => Promise<ApiResponse<R>>
         : OperationMethods[K]
 }
 
@@ -46,21 +45,32 @@ export const loadSpec = async (path: string): Promise<OpenAPISpec> => {
  * Splits a flat parameters object into path parameters and query parameters.
  * Replaces placeholders in the URL with the values from `parameters`.
  */
-export const splitParams = (urlTemplate: string, parameters: Record<string, any>): SplitParamsResult => {
+export const splitParams = (
+    urlTemplate: string,
+    parameters: Record<string, any> | string | number,
+): SplitParamsResult => {
     let url = urlTemplate
     const pathParams: Record<string, any> = {}
 
+    const isSingleParam = typeof parameters === 'string' || typeof parameters === 'number'
+    const paramKeys = urlTemplate.match(/\{([^}]+)\}/g)?.map(key => key.slice(1, -1)) || []
+    const paramsObj: Record<string, any> = isSingleParam
+        ? paramKeys.length > 0
+            ? { [paramKeys[0]!]: parameters }
+            : {}
+        : parameters
+
     url.replace(/\{([^}]+)\}/g, (_, key) => {
-        if (key in parameters) {
-            pathParams[key] = parameters[key]
-            url = url.replace(`{${key}}`, encodeURIComponent(String(parameters[key])))
+        if (key in paramsObj) {
+            pathParams[key] = paramsObj[key]
+            url = url.replace(`{${key}}`, encodeURIComponent(String(paramsObj[key])))
         } else {
             throw new Error(`Missing path parameter: ${key}`)
         }
         return ''
     })
 
-    const queryParams: Record<string, any> = { ...parameters }
+    const queryParams: Record<string, any> = { ...paramsObj }
     Object.keys(pathParams).forEach((k) => delete queryParams[k])
 
     return { url, pathParams, queryParams }
