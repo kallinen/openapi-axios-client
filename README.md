@@ -17,7 +17,7 @@ npm install @kallinen/openapi-axios-client
 Types can be generated with following command
 
 ```
-npx openapi-typings-gen spec.json > spec.ts
+npx @kallinen/openapi-typings-gen spec.json > spec.ts
 ```
 
 ### Creating a new API
