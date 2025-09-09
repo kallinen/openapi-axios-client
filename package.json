@@ -1,6 +1,6 @@
 {
   "name": "@kallinen/openapi-axios-client",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "description": "A lightweight TypeScript library to generate fully typed API clients from OpenAPI specifications.",
   "files": [
     "lib/**/*"
@@ -25,7 +25,6 @@
   "homepage": "https://github.com/kallinen/openapi-axios-client#readme",
   "dependencies": {
     "@apidevtools/json-schema-ref-parser": "^14.2.0",
-    "@seriousme/openapi-schema-validator": "^2.5.0",
     "axios": "^1.11.0"
   },
   "devDependencies": {

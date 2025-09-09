@@ -30,14 +30,6 @@ export interface SplitParamsResult {
 
 export const loadSpec = async (path: string): Promise<OpenAPISpec> => {
     const raw = await import(path)
-    const { Validator } = await import('@seriousme/openapi-schema-validator')
-
-    const validator = new Validator()
-    const result = await validator.validate(raw)
-    if (!result.valid) {
-        throw new Error(`OpenAPI validation errors: ${JSON.stringify(result.errors, null, 2)}`)
-    }
-
     return await dereference(raw)
 }
 
