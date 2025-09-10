@@ -1,6 +1,6 @@
 import type { AxiosRequestConfig, AxiosResponse } from 'axios'
-import { dereference } from '@apidevtools/json-schema-ref-parser'
 import { ApiConfig, ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
+import axios from 'axios'
 
 export type AdaptedOperationMethods<OperationMethods> = {
     [K in keyof OperationMethods]: OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
@@ -29,8 +29,12 @@ export interface SplitParamsResult {
 }
 
 export const loadSpec = async (path: string): Promise<OpenAPISpec> => {
-    const raw = await import(path)
-    return await dereference(raw)
+    const res = await axios.get(path, { responseType: 'json' })
+    try {
+        return res.data
+    } catch (e) {
+        throw new Error(`Failed to load OpenAPI spec: ${res.status}`)
+    }
 }
 
 /**
