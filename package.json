@@ -1,6 +1,6 @@
 {
   "name": "@kallinen/openapi-axios-client",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "description": "A lightweight TypeScript library to generate fully typed API clients from OpenAPI specifications.",
   "files": [
     "lib/**/*"

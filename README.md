@@ -42,6 +42,12 @@ const anotherApi = await createTypedApi<OperationMethods, PathsDictionary>('path
     timeout: config.timeout,
     headers: config.headers,
 })
+
+const remoteApi = await createTypedApi<OperationMethods, PathsDictionary>('https://example.com/openapi.json', {
+    url: config.url,
+    timeout: config.timeout,
+    headers: config.headers,
+})
 ```
 
 ### Api calls

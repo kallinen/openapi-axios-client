@@ -91,6 +91,26 @@ const createMethod =
         return api.request(axiosConfig)
     }
 
+const toSafeName = (name: string): string => {
+    return name.replace(/[^a-zA-Z0-9_]/g, '_')
+}
+
+function camelCase(input: string = ''): string {
+    const reUnicodeWord = /[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g
+
+    const words = (input.match(reUnicodeWord) || []).map((w) => w.toLowerCase())
+
+    if (words.length === 0) return ''
+
+    return (
+        words[0] +
+        words
+            .slice(1)
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join('')
+    )
+}
+
 export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
     spec: OpenAPISpec,
     api: ApiInstance,
@@ -102,7 +122,10 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
         paths[path] = {}
         for (const [method, operation] of Object.entries(methodsObj)) {
             const fn = createMethod(path, method, api)
-            if (operation.operationId) methods[operation.operationId] = fn
+            const operationId = operation.operationId
+                ? toSafeName(operation.operationId)
+                : toSafeName(camelCase(`${method} ${path.replace(/[\/{}]/g, ' ')}`))
+            methods[operationId] = fn
             paths[path][method] = fn
         }
     }
