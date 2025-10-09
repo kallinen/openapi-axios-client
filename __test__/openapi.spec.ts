@@ -8,6 +8,8 @@ import {
     createTypedApi,
     OpenAPISpec,
 } from '../src'
+import z from 'zod'
+import MockAdapter from 'axios-mock-adapter'
 
 type RawAxiosResponse<Response> = Promise<AxiosResponse<Response>>
 
@@ -38,6 +40,10 @@ const mockRequest: ApiInstance['request'] = jest.fn(
 
 const api = {
     request: mockRequest,
+    interceptors: {
+        request: { use: jest.fn(), eject: jest.fn(), clear: jest.fn() },
+        response: { use: jest.fn(), eject: jest.fn(), clear: jest.fn() },
+    } as any,
 } as ApiInstance
 
 interface OperationMethods {
@@ -201,5 +207,71 @@ describe('createTypedApi', () => {
         })
         expect(spy).toHaveBeenCalled()
         expect((api as any).createUser).not.toBeDefined()
+    })
+})
+
+describe('Response interceptor - validators', () => {
+    it('should skip validation if no validator exists for the operation', async () => {
+        const api = createTypedApi<OperationMethods, any>(spec, { url: 'http://localhost', validators: {} })
+
+        const mock = new MockAdapter(api as any)
+        const validData = { id: 1, name: 'Alice' }
+        mock.onGet('/user/1').reply(200, validData)
+
+        const res = await api.getUser({ id: 1 })
+
+        expect(res.ok).toBe(true)
+        expect(res.data).toEqual(validData)
+    })
+
+    it('should throw validation error if validator fails', async () => {
+        const validators = {
+            getUser: z.object({ id: z.number(), name: z.string(), extra: z.string() }),
+        }
+
+        const api = createTypedApi<OperationMethods, any>(spec, { url: 'http://localhost', validators })
+
+        const mock = new MockAdapter(api as any)
+        mock.onGet('/user/1').reply(200, { id: 1, name: 'Alice' }) // missing 'extra'
+
+        const res = await api.getUser({ id: 1 })
+
+        expect(res.ok).toBe(false)
+        expect(res.problem).toBe('VALIDATION_ERROR')
+    })
+
+    it('should allow successful validation when data matches validator', async () => {
+        const validators = {
+            getUser: z.object({ id: z.number(), name: z.string() }),
+        }
+
+        const api = createTypedApi<OperationMethods, any>(spec, { url: 'http://localhost', validators })
+
+        const mock = new MockAdapter(api as any)
+        const validData = { id: 1, name: 'Alice' }
+        mock.onGet('/user/1').reply(200, validData)
+
+        const res = await api.getUser({ id: 1 })
+        expect(res.ok).toBe(true)
+        expect(res.data).toEqual(validData)
+    })
+
+    it('should pass through responses without validators regardless of HTTP method', async () => {
+        const validators = {
+            someValidator: z.object({ id: z.string() })
+        }
+        const api = createTypedApi<OperationMethods, any>(
+            spec,
+            { url: 'http://localhost', validators },
+        )
+        const mock = new MockAdapter(api as any)
+
+        const postData = { name: 'Bob' }
+        mock.onPost('/user/10').reply(201, { id: 10, name: 'Bob' }) // no validator exists
+
+        const res = await api.createUser({ id: 10 }, postData)
+
+        expect(res.ok).toBe(true)
+        expect(res.data).toEqual({ id: 10, name: 'Bob' })
     })
 })

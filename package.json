@@ -1,6 +1,6 @@
 {
   "name": "@kallinen/openapi-axios-client",
-  "version": "0.4.12",
+  "version": "0.5.0",
   "description": "A lightweight TypeScript library to generate fully typed API clients from OpenAPI specifications.",
   "files": [
     "lib/**/*"
@@ -24,10 +24,12 @@
   },
   "homepage": "https://github.com/kallinen/openapi-axios-client#readme",
   "dependencies": {
-    "axios": "^1.11.0"
+    "axios": "^1.11.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/jest": "^29.4.4",
+    "axios-mock-adapter": "^2.1.0",
     "cross-env": "^7.0.3",
     "jest": "^29.0.3",
     "jest-mock-server": "^0.1.0",

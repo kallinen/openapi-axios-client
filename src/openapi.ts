@@ -1,6 +1,7 @@
 import type { AxiosRequestConfig, AxiosResponse } from 'axios'
-import { ApiConfig, ApiInstance, ApiResponse, createApi, Methods } from './wrapper'
+import { ApiConfig, ApiErrorResponse, ApiInstance, ApiResponse, createApi, Methods, PROBLEM_CODE } from './wrapper'
 import axios from 'axios'
+import { z } from 'zod'
 
 export type AdaptedOperationMethods<OperationMethods> = {
     [K in keyof OperationMethods]: OperationMethods[K] extends (...args: infer A) => Promise<AxiosResponse<infer R>>
@@ -77,14 +78,15 @@ export const splitParams = (
 }
 
 const createMethod =
-    (path: string, method: string, api: ApiInstance) =>
+    (path: string, method: string, operationId: string, api: ApiInstance) =>
     async (parameters: any = {}, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<any>> => {
         const { queryParams, url } = splitParams(path, parameters)
-        const axiosConfig: AxiosRequestConfig = {
+        const axiosConfig: AxiosRequestConfig & { operationId: string } = {
             method,
             url,
             params: queryParams,
             data,
+            operationId,
             ...config,
         }
 
@@ -114,6 +116,7 @@ function camelCase(input: string = ''): string {
 export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
     spec: OpenAPISpec,
     api: ApiInstance,
+    validators: Record<string, z.ZodType> = {},
 ): ApiInstance & OperationMethods & { paths: PathsDictionary } => {
     const methods: Record<string, Function> = {}
     const paths: Record<string, Record<string, Function>> = {}
@@ -121,36 +124,77 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
     for (const [path, methodsObj] of Object.entries(spec.paths)) {
         paths[path] = {}
         for (const [method, operation] of Object.entries(methodsObj)) {
-            const fn = createMethod(path, method, api)
             const operationId = operation.operationId
                 ? toSafeName(operation.operationId)
                 : toSafeName(camelCase(`${method} ${path.replace(/[\/{}]/g, ' ')}`))
+            const fn = createMethod(path, method, operationId, api)
             methods[operationId] = fn
             paths[path][method] = fn
         }
     }
+
+    if (Object.keys(validators).length) {
+        api.interceptors.response.use((res) => {
+            if (res.ok) {
+                const operationId = (res.config as any).operationId
+                const validator = validators[operationId]
+                if (validator) {
+                    try {
+                        validator.parse(res.data)
+                    } catch (e) {
+                        return {
+                            ok: false,
+                            problem: PROBLEM_CODE.VALIDATION_ERROR,
+                            originalError: e as any,
+                            data: res.data,
+                            status: res.status,
+                            headers: res.headers,
+                            config: res.config,
+                        } as ApiErrorResponse<any>
+                    }
+                }
+            }
+            return res
+        })
+    }
+
     Object.assign(api, methods, { paths })
 
     return api as OperationMethods & { paths: PathsDictionary } & ApiInstance
 }
 
+type TypedApiConfig = ApiConfig & {
+    validators?: Record<string, z.ZodType>
+}
+
 export function createTypedApi<OperationMethods, PathsDictionary>(
     specOrPath: string,
-    config: ApiConfig,
+    config: TypedApiConfig,
 ): Promise<AdaptedOperationMethods<OperationMethods> & { paths: PathsDictionary } & ApiInstance>
 export function createTypedApi<OperationMethods, PathsDictionary>(
     specOrPath: OpenAPISpec,
-    config: ApiConfig,
+    config: TypedApiConfig,
 ): AdaptedOperationMethods<OperationMethods> & { paths: PathsDictionary } & ApiInstance
-export function createTypedApi<OperationMethods, PathsDictionary>(specOrPath: string | OpenAPISpec, config: ApiConfig) {
+export function createTypedApi<OperationMethods, PathsDictionary>(
+    specOrPath: string | OpenAPISpec,
+    config: TypedApiConfig,
+) {
     if (typeof specOrPath === 'string') {
         return (async () => {
             const spec = await loadSpec(specOrPath)
             const apiInstance = createApi(config)
-            return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(spec, apiInstance)
+            return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(
+                spec,
+                apiInstance,
+                config.validators,
+            )
         })()
     } else {
         const apiInstance = createApi(config)
-        return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(specOrPath, apiInstance)
+        return buildClientFromSpec<AdaptedOperationMethods<OperationMethods>, PathsDictionary>(
+            specOrPath,
+            apiInstance,
+            config.validators,
+        )
     }
 }

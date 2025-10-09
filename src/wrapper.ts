@@ -1,4 +1,11 @@
-import axios, { AxiosError, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import axios, {
+    AxiosError,
+    AxiosInstance,
+    AxiosInterceptorManager,
+    AxiosInterceptorOptions,
+    AxiosResponse,
+    InternalAxiosRequestConfig,
+} from 'axios'
 import { isCancel as _isCancel } from 'axios'
 
 export enum PROBLEM_CODE {
@@ -9,13 +16,13 @@ export enum PROBLEM_CODE {
     UNKNOWN_ERROR = 'UNKNOWN_ERROR',
     CANCEL_ERROR = 'CANCEL_ERROR',
     TIMEOUT_ERROR = 'TIMEOUT_ERROR',
+    VALIDATION_ERROR = 'VALIDATION_ERROR',
 }
 
 export interface ApiErrorResponse<T> {
     ok: false
     problem: PROBLEM_CODE
     originalError: AxiosError
-
     data?: T
     status: number
     headers?: any
@@ -41,7 +48,7 @@ export interface ApiConfig {
     headers?: Record<string, any>
 }
 
-export type ApiResponse<ResponseBody, ErrorBody = any> = ApiErrorResponse<ErrorBody> | ApiOkResponse<ResponseBody>
+export type ApiResponse<ResponseBody = any, ErrorBody = any> = ApiErrorResponse<ErrorBody> | ApiOkResponse<ResponseBody>
 
 export type Methods = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head'
 
@@ -49,7 +56,21 @@ type ApiRequestFunction<M extends Methods> = <T = unknown, E = any>(
     ...params: Parameters<AxiosInstance[M]>
 ) => Promise<ApiResponse<T, E>>
 
-export interface ApiInstance extends Omit<AxiosInstance, Methods> {
+type ApiRequestInterceptorUse<T> = (
+    callback?: ((value: T) => T | Promise<T>) | null,
+) => number
+
+type ApiResponseInterceptorUse = <T>(
+    callback: (res: ApiResponse<T>) => ApiResponse<T> | Promise<ApiResponse<T>>
+) => number
+
+interface ApiInterceptorManager {
+    use: ApiResponseInterceptorUse
+    eject(id: number): void
+    clear(): void
+}
+
+export interface ApiInstanceBeforeInterceptor extends Omit<AxiosInstance, Methods> {
     get: ApiRequestFunction<'get'>
     post: ApiRequestFunction<'post'>
     put: ApiRequestFunction<'put'>
@@ -59,14 +80,21 @@ export interface ApiInstance extends Omit<AxiosInstance, Methods> {
     head: ApiRequestFunction<'head'>
 }
 
+export interface ApiInstance extends Omit<ApiInstanceBeforeInterceptor, 'interceptors'> {
+    interceptors: {
+        request: ApiInterceptorManager
+        response: ApiInterceptorManager
+    }
+}
+
 export const createApi = (config: ApiConfig): ApiInstance => {
     const api = axios.create({
         baseURL: config.url,
         timeout: config.timeout,
         headers: config.headers,
-    })
+    }) as ApiInstanceBeforeInterceptor
     api.interceptors.response.use(interceptor, responseError)
-    return api
+    return api as unknown as ApiInstance
 }
 
 export const getProblemFromStatus = (status: number | undefined): PROBLEM_CODE | null | undefined => {
@@ -77,7 +105,7 @@ export const getProblemFromStatus = (status: number | undefined): PROBLEM_CODE |
     return PROBLEM_CODE.UNKNOWN_ERROR
 }
 
- // Type issue: https://github.com/axios/axios/issues/5153
+// Type issue: https://github.com/axios/axios/issues/5153
 function isCancel(error: AxiosError): boolean {
     return _isCancel(error)
 }
@@ -107,10 +135,11 @@ const isAxiosError = (error: any): error is AxiosError => {
     return false
 }
 
-const responseError = (e: any): Partial<ApiErrorResponse<any>> => {
+const responseError = <T>(e: T): Partial<ApiErrorResponse<T>> => {
     if (isAxiosError(e)) {
         return {
             ...e.response,
+            data: {} as T,
             ok: false,
             status: e.response?.status,
             config: e.config as any,

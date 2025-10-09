@@ -5,6 +5,7 @@
       "strict": true,
       "target": "es2024",
       "module": "node20",
+      "esModuleInterop": true
     },
     "include": ["src"],
     "exclude": [

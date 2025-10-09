@@ -50,6 +50,21 @@ const remoteApi = await createTypedApi<OperationMethods, PathsDictionary>('https
 })
 ```
 
+#### Applying validation to API responses
+⚠️ This feature is experimental and may change in future releases.
+
+```
+import { apiResponseValidators } from /path/to/generated/types
+
+const clientValidatedApi = await createTypedApi<OperationMethods, PathsDictionary>('https://example.com/openapi.json', {
+    url: config.url,
+    timeout: config.timeout,
+    headers: config.headers,
+    validators: apiResponseValidators
+})
+
+```
+
 ### Api calls
 
 ```
