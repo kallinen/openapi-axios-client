@@ -117,6 +117,7 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
     spec: OpenAPISpec,
     api: ApiInstance,
     validators: Record<string, z.ZodType> = {},
+    validationBehaviour: 'error' | 'warning' = 'error',
 ): ApiInstance & OperationMethods & { paths: PathsDictionary } => {
     const methods: Record<string, Function> = {}
     const paths: Record<string, Record<string, Function>> = {}
@@ -142,15 +143,19 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
                     try {
                         validator.parse(res.data)
                     } catch (e) {
-                        return {
-                            ok: false,
-                            problem: PROBLEM_CODE.VALIDATION_ERROR,
-                            originalError: e as any,
-                            data: res.data,
-                            status: res.status,
-                            headers: res.headers,
-                            config: res.config,
-                        } as ApiErrorResponse<any>
+                        if (validationBehaviour === 'error') {
+                            return {
+                                ok: false,
+                                problem: PROBLEM_CODE.VALIDATION_ERROR,
+                                originalError: e as any,
+                                data: res.data,
+                                status: res.status,
+                                headers: res.headers,
+                                config: res.config,
+                            } as ApiErrorResponse<any>
+                        } else if (validationBehaviour === 'warning') {
+                            console.warn('Response validation failed:', e)
+                        }
                     }
                 }
             }
@@ -165,6 +170,7 @@ export const buildClientFromSpec = <OperationMethods, PathsDictionary>(
 
 type TypedApiConfig = ApiConfig & {
     validators?: Record<string, z.ZodType>
+    validationBehaviour?: 'error' | 'warning'
 }
 
 export function createTypedApi<OperationMethods, PathsDictionary>(
@@ -187,6 +193,7 @@ export function createTypedApi<OperationMethods, PathsDictionary>(
                 spec,
                 apiInstance,
                 config.validators,
+                config.validationBehaviour,
             )
         })()
     } else {
@@ -195,6 +202,7 @@ export function createTypedApi<OperationMethods, PathsDictionary>(
             specOrPath,
             apiInstance,
             config.validators,
+            config.validationBehaviour,
         )
     }
 }

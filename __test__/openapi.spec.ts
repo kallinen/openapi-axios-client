@@ -211,6 +211,15 @@ describe('createTypedApi', () => {
 })
 
 describe('Response interceptor - validators', () => {
+    let warnSpy: jest.SpyInstance
+
+    beforeEach(() => {
+        warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        warnSpy.mockRestore()
+    })
     it('should skip validation if no validator exists for the operation', async () => {
         const api = createTypedApi<OperationMethods, any>(spec, { url: 'http://localhost', validators: {} })
 
@@ -240,6 +249,25 @@ describe('Response interceptor - validators', () => {
         expect(res.problem).toBe('VALIDATION_ERROR')
     })
 
+    it('should log validation error if validator fails when using warning behaviour', async () => {
+        const validators = {
+            getUser: z.object({ id: z.number(), name: z.string(), extra: z.string() }),
+        }
+
+        const api = createTypedApi<OperationMethods, any>(spec, {
+            url: 'http://localhost',
+            validators,
+            validationBehaviour: 'warning',
+        })
+
+        const mock = new MockAdapter(api as any)
+        mock.onGet('/user/1').reply(200, { id: 1, name: 'Alice' })
+
+        const res = await api.getUser({ id: 1 })
+        expect(res.ok).toBe(true)
+        expect(warnSpy).toHaveBeenCalled()
+    })
+
     it('should allow successful validation when data matches validator', async () => {
         const validators = {
             getUser: z.object({ id: z.number(), name: z.string() }),
@@ -258,12 +286,9 @@ describe('Response interceptor - validators', () => {
 
     it('should pass through responses without validators regardless of HTTP method', async () => {
         const validators = {
-            someValidator: z.object({ id: z.string() })
+            someValidator: z.object({ id: z.string() }),
         }
-        const api = createTypedApi<OperationMethods, any>(
-            spec,
-            { url: 'http://localhost', validators },
-        )
+        const api = createTypedApi<OperationMethods, any>(spec, { url: 'http://localhost', validators })
         const mock = new MockAdapter(api as any)
 
         const postData = { name: 'Bob' }
